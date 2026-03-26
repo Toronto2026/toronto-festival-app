@@ -126,6 +126,46 @@ def _run_generation(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# Допоміжна функція читання PDF для пошуку
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _parse_search_pdf(pdf_bytes: bytes):
+    """
+    Читає PDF-таблицю (Дипломи або Подяки) через pdfplumber.
+    Повертає (DataFrame, None) або (None, повідомлення_про_помилку).
+    """
+    try:
+        import pdfplumber
+    except ImportError:
+        return None, "pdfplumber не встановлено на сервері"
+
+    all_rows = []
+    headers = None
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for page in pdf.pages:
+                table = page.extract_table()
+                if not table:
+                    continue
+                if headers is None:
+                    headers = table[0]
+                    all_rows.extend(table[1:])
+                else:
+                    # Пропускаємо повторний заголовок якщо він збігається
+                    start = 1 if table[0] == headers else 0
+                    all_rows.extend(table[start:])
+    except Exception as e:
+        return None, f"Помилка читання PDF: {e}"
+
+    if not all_rows or headers is None:
+        return None, "PDF не містить таблиць. Перевірте що файл — таблиця пошуку, а не диплом."
+
+    df = pd.DataFrame(all_rows, columns=headers)
+    df = df.dropna(how="all").reset_index(drop=True)
+    return df, None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # СТОРІНКА 1 — ГЕНЕРАТОР ТАБЛИЦЬ
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -286,8 +326,8 @@ def render_search():
     )
 
     # ── Завантаження даних ──────────────────────────────────────────────────
-    tab_upload, tab_paste = st.tabs(
-        ["Завантажити xlsx-таблицю", "Вставити дані вручну"]
+    tab_upload, tab_pdf, tab_paste = st.tabs(
+        ["Завантажити xlsx-таблицю", "Завантажити PDF-таблицю", "Вставити дані вручну"]
     )
 
     with tab_upload:
@@ -313,6 +353,23 @@ def render_search():
                 st.success(f"Завантажено: {len(df_loaded)} рядків")
             except Exception as e:
                 st.error(f"Помилка читання файлу: {e}")
+
+    with tab_pdf:
+        sf_pdf = st.file_uploader(
+            "Таблиця (.pdf)",
+            type=["pdf"],
+            key="search_pdf_upload",
+            help="PDF-таблиця швидкого пошуку (Дипломи або Подяки)",
+        )
+        if sf_pdf:
+            with st.spinner("Читаю PDF..."):
+                df_pdf, err = _parse_search_pdf(sf_pdf.getvalue())
+            if err:
+                st.error(err)
+            else:
+                st.session_state["search_df"] = df_pdf
+                st.session_state["search_source"] = sf_pdf.name
+                st.success(f"Завантажено: {len(df_pdf)} рядків")
 
     with tab_paste:
         st.markdown("Формат: `ПІБ,Номер` — кожен учасник з нового рядка")

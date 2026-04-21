@@ -283,6 +283,8 @@ def build_diplom_table(df: pd.DataFrame, date: str, out_name: str) -> str:
             col_map["Laureate"] = col
         elif "диплом" in cl or "diploma" in cl:
             col_map["№Диплому"] = col
+        elif "школа" in cl or "school" in cl or "заклад" in cl or "установа" in cl:
+            col_map["Школа"] = col
 
     # №Диплому — обов'язкова колонка. Якщо її немає — попереджаємо, але не зупиняємось:
     # колонка буде порожньою (оператор заповнює вручну).
@@ -293,8 +295,12 @@ def build_diplom_table(df: pd.DataFrame, date: str, out_name: str) -> str:
         sys.exit(1)
 
     auto_numbered = "№Диплому" not in col_map
+    has_school = "Школа" in col_map
     if auto_numbered:
-        _log("[i]  Колонка '№ Диплома' не знайдена — нумерується за порядком вихідного файлу, потім сортування.")
+        if has_school:
+            _log("[i]  Колонка '№ Диплома' не знайдена — нумерується за порядком: Школа → Artist.")
+        else:
+            _log("[i]  Колонка '№ Диплома' не знайдена — нумерується за порядком вихідного файлу.")
 
     # --- Формуємо робочий DataFrame ---
     cols_order = ["ID", "Artist", "Номінація", "Назва", "Laureate", "№Диплому"]
@@ -304,12 +310,26 @@ def build_diplom_table(df: pd.DataFrame, date: str, out_name: str) -> str:
             work_df[key] = df[col_map[key]].fillna("").astype(str).str.strip()
         else:
             work_df[key] = ""
+    # Школа — зберігаємо окремо для сортування (не виводимо в таблицю)
+    if has_school:
+        work_df["_Школа"] = df[col_map["Школа"]].fillna("").astype(str).str.strip()
 
-    # --- Автонумерація дипломів (ДО сортування — за порядком вихідного файлу) ---
+    # --- Автонумерація дипломів ---
     if auto_numbered:
+        if has_school:
+            # Сортуємо Школа → Artist, присвоюємо номери як дизайнер
+            work_df = work_df.sort_values(
+                by=["_Школа", "Artist"],
+                key=lambda s: s.map(sort_key),
+                kind="stable"
+            ).reset_index(drop=True)
         work_df["№Диплому"] = [str(i) for i in range(1, len(work_df) + 1)]
 
-    # --- Сортування за Artist ---
+    # Видаляємо службову колонку школи (в таблицю не виводимо)
+    if "_Школа" in work_df.columns:
+        work_df = work_df.drop(columns=["_Школа"])
+
+    # --- Сортування за Artist для відображення у таблиці пошуку ---
     work_df = work_df.sort_values(
         by="Artist",
         key=lambda s: s.map(sort_key),

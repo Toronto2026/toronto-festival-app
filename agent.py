@@ -470,14 +470,19 @@ def build_podyaka_table(df: pd.DataFrame, date: str, out_name: str) -> str:
             col_map["ПІБ"] = non_id_cols[0]
             _log(f"[i]  Колонка ПІБ керівника: '{non_id_cols[0]}'")
 
-    if "ID" not in col_map or "ПІБ" not in col_map:
+    if "ПІБ" not in col_map:
         _log(f"[ERROR] Не знайдено обов'язкових колонок для подяк.")
         _log(f"   Наявні колонки: {list(df.columns)}")
         sys.exit(1)
 
     # --- Формуємо робочий DataFrame ---
     work_df = pd.DataFrame()
-    work_df["ID"]  = df[col_map["ID"]].fillna("").astype(str).str.strip()
+    # ID — опціональна колонка; якщо відсутня — нумеруємо рядки автоматично
+    if "ID" in col_map:
+        work_df["ID"] = df[col_map["ID"]].fillna("").astype(str).str.strip()
+    else:
+        work_df["ID"] = [str(i) for i in range(1, len(df) + 1)]
+        _log("[i]  Колонка ID не знайдена — присвоєно автонумерацію.")
     work_df["ПІБ"] = df[col_map["ПІБ"]].fillna("").astype(str).str.strip()
 
     # №Подяки — якщо є в файлі, беремо; якщо ні — нумеруємо по порядку до сортування

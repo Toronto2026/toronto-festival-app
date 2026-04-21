@@ -270,7 +270,7 @@ def build_diplom_table(df: pd.DataFrame, date: str, out_name: str) -> str:
     col_map = {}
     for col in df.columns:
         cl = col.strip().lower()
-        if cl == "id":
+        if cl in ("id", "№", "no", "n°", "#"):
             col_map["ID"] = col
         elif ("піб учасника" in cl or "artist" in cl or "pib" in cl
               or ("піб" in cl and "керівник" not in cl and "концертмейстер" not in cl)):
@@ -453,7 +453,7 @@ def build_podyaka_table(df: pd.DataFrame, date: str, out_name: str) -> str:
     col_map = {}
     for col in df.columns:
         cl = col.strip().lower()
-        if cl == "id":
+        if cl in ("id", "№", "no", "n°", "#"):
             col_map["ID"] = col
         elif ("керівник" in cl or "концертмейстер" in cl
               or "пед" in cl or "teacher" in cl
@@ -464,7 +464,8 @@ def build_podyaka_table(df: pd.DataFrame, date: str, out_name: str) -> str:
 
     # Якщо не знайшли ПІБ — беремо другу колонку після ID
     if "ПІБ" not in col_map:
-        non_id_cols = [c for c in df.columns if c.strip().lower() != "id"]
+        id_vals = {"id", "№", "no", "n°", "#"}
+        non_id_cols = [c for c in df.columns if c.strip().lower() not in id_vals]
         if non_id_cols:
             col_map["ПІБ"] = non_id_cols[0]
             _log(f"[i]  Колонка ПІБ керівника: '{non_id_cols[0]}'")

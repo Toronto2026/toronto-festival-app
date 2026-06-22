@@ -267,11 +267,21 @@ def build_diplom_table(df: pd.DataFrame, date: str, out_name: str) -> str:
     Повертає шлях до збереженого файлу.
     """
     # --- Знаходимо потрібні колонки (регістронезалежно) ---
+    # Якщо у файлі є і '№' і 'ID' — '№' є номером диплому, 'ID' — Bitrix ID
+    has_explicit_id = any(c.strip().lower() == "id" for c in df.columns)
+
     col_map = {}
     for col in df.columns:
         cl = col.strip().lower()
-        if cl in ("id", "№", "no", "n°", "#"):
+        if cl == "id":
             col_map["ID"] = col
+        elif cl in ("№", "no", "n°", "#"):
+            if has_explicit_id:
+                # Окремий 'ID' вже є → '№' — це номер диплому
+                if "№Диплому" not in col_map:
+                    col_map["№Диплому"] = col
+            else:
+                col_map["ID"] = col
         elif ("піб учасника" in cl or "artist" in cl or "pib" in cl
               or ("піб" in cl and "керівник" not in cl and "концертмейстер" not in cl)):
             col_map["Artist"] = col
